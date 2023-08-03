@@ -6,77 +6,56 @@
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 <title>Spoken Dialog by Javascript</title>
 <style>
-    /* styles.css */
-body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    background-color: #00BFFF; /* 水色の背景色 */
-    color: #FFFFFF; /* 白のテキスト色 */
-}
-
-
-.container {
-    text-align: center;
-}
-
-.input-output {
-    margin-top: 20px;
-}
-
-.input-output > div {
-    margin-bottom: 10px;
-}
-
-.input-output p {
-    display: inline-block;
-}
-
+  /* 外側のコンテナに対するCSSスタイル */
+  body {
+    background-image: url("アートボード 1-100.jpg");
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+  }
+  
+  /* ボタンのスタイル */
+  #startButton, #stopButton {
+    margin-top: 120px; /* ボタンの位置を10px下げる */
+  }
+  
 </style>
 </head>
 <body>
-<div class="container">
-    <h1>音声対話</h1>
 
-    <div class="input-output">
-        <div>
-            <p>
-                <button id="startButton">開始</button>
-                <button id="stopButton">停止</button>
-            </p>
-        </div>
 
-        <div id="resultOutput"></div>
-        <p>
-        音量: <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
-        速度: <input type="range" id="speedSlider" min="0.5" max="2" step="0.01" value="1">
-    </p>
+<p>
+<button id="startButton">start</button>
+<button id="stopButton">stop</button>
+</p>
 
-    </div>
-</div>
+<p>
+<div id="resultOutput"></div>
+</p>
 <script>
+
 // 応答の定義（ハッシュ）    
 var response = {
    "あなた,誰": "わたしはアレクサではありません",
-"好きな,色": "オレンジです",
-"好きな,スポーツ": "けん玉です",
-"好きな,食べ物": "焼肉です",
-"和歌山,天気": "和歌山の天気はたぶん晴れでしょう",
-"大阪,天気": "大阪の天気は雨です。",
-"明日,天気": "明日の天気は曇りだと思います",
-"明日,和歌山,天気": "明日の和歌山の天気はずばり雪です",
+    "名前は": "内緒です",
+    "何歳": "え、わたし、何歳にみえますか",
+    "元気": "元気ですよー",
+    "好きな,色": "オレンジです",
+    "夢は": "世界を冒険することです",
+    "好きな,スポーツ": "けん玉です",
+    "好きな,食べ物": "焼肉です",
+    "和歌山,天気": "和歌山の天気はたぶん晴れでしょう",
+    "大阪,天気": "大阪の天気は雨です。",
+    "明日,天気": "明日の天気は曇りだと思います",
+    "明日,和歌山,天気": "明日の和歌山の天気はずばり雪です",
 };
 
 // ウエイクワードの定義
-var wake_word = "OK.*コンピューター";
+var wake_word = "かわいい|犬";
 
 const startButton = document.querySelector('#startButton'); // 開始ボタン
 const stopButton = document.querySelector('#stopButton'); // 停止ボタン
 const resultOutput = document.querySelector('#resultOutput'); // 結果出力エリア
-const volumeSlider = document.getElementById('volumeSlider'); // 音量のスライダー
-const speedSlider = document.getElementById('speedSlider'); // 速度のスライダー
 
 if (!'SpeechSynthesisUtterance' in window) {
     alert("あなたのブラウザはSpeech Synthesis APIに未対応です。");
@@ -101,55 +80,74 @@ asr.continuous = true; // 継続入力をオン
 let output = ''; // 出力
 
 // 認識結果が出力されたときのイベントハンドラ
-asr.onresult = function(event){
-    let transcript = event.results[event.resultIndex][0].transcript; // 結果文字列
-	let transcript_previous = null; // 結果文字列（ひとつ前）
+asr.onresult = function(event) {
+        let transcript = event.results[event.resultIndex][0].transcript; // 結果文字列
+        let transcript_previous = null; // 結果文字列（ひとつ前）
 
-    if(event.resultIndex > 0){
-        transcript_previous = event.results[event.resultIndex - 1][0].transcript;
+        if (event.resultIndex > 0) {
+            transcript_previous = event.results[event.resultIndex - 1][0].transcript;
+        }
+
+        let output_not_final = '';
+        if (event.results[event.resultIndex].isFinal) { // 結果が確定（Final）のとき
+            if (new RegExp(wake_word).test(transcript_previous)) {
+                asr.abort(); // 音声認識を停止
+                let answer = response[transcript];
+
+                let keys = Object.keys(response);
+                keys.forEach(function(key) {
+                    let flag = true;
+                    key.split(',').forEach(function(word) {
+                        let pattern = new RegExp(word);
+                        let flag_test = pattern.test(transcript);
+                        flag = flag && flag_test;
+                    });
+                    if (flag) {
+                        answer = response[key];
+                        console.log(key + " : " + answer);
+                    }
+                });
+
+                if (/(かわいい|犬)/.test(transcript)) {
+                    getRandomDogImage();
+                    answer = "かわいい犬を提供します。";
+                }
+
+                if (typeof answer == 'undefined') {
+                    answer = "ごめんなさい。わかりません。";
+                }
+
+                output += transcript + ' => ' + answer + '<br>';
+
+                tts.text = answer;
+                // 再生が終了（end）ときのイベントハンドラ（終了したときに実行される）
+                tts.onend = function(event) {
+                    asr.start(); // 音声認識を再開
+                }
+
+                speechSynthesis.speak(tts); // 再生
+            }
+        } else { // 結果がまだ未確定のとき
+            output_not_final = '<span style="color:#ddd;">' + transcript + '</span>';
+        }
+        resultOutput.innerHTML = output + output_not_final;
     }
 
-    let output_not_final = '';
-    if (event.results[event.resultIndex].isFinal) { // 結果が確定（Final）のとき
+    // ランダムな犬の画像を取得する関数
+    function getRandomDogImage() {
+        const dogAPI = 'https://dog.ceo/api/breeds/image/random';
+        fetch(dogAPI)
+            .then(response => response.json())
+            .then(data => {
+                const dogImageURL = data.message;
+                const imgElement = document.createElement('img');
+                imgElement.src = dogImageURL;
+                imgElement.alt = 'ランダムな犬の画像';
+                resultOutput.appendChild(imgElement);
+            })
+            .catch(error => console.error('犬の画像を取得できませんでした。', error));
+    }
     
-    if(new RegExp(wake_word).test(transcript_previous)){
-	    asr.abort(); // 音声認識を停止
-	    let answer = response[transcript];
-	
-		let keys = Object.keys(response);
-		keys.forEach(function(key) {
-		let flag = true;
-		key.split(',').forEach(function(word) {
-		let pattern = new RegExp(word);
-		let flag_test = pattern.test(transcript);
-		flag = flag && flag_test;
-		});
-		if(flag){
-		answer = response[key];
-		console.log(key + " : " + answer);
-		}
-		});
-        
-        if(typeof answer == 'undefined'){
-	        answer = "ごめんなさい。わかりません。";
-    	}
-    	
-        output += transcript +'<br>'+ answer +'<br>';
-
-	    tts.text = answer;
-	    // 再生が終了（end）ときのイベントハンドラ（終了したときに実行される）
-	    tts.onend = function(event){
-	        asr.start(); // 音声認識を再開
-	    }
-
-	    speechSynthesis.speak(tts); // 再生
-	    }
-    } else { // 結果がまだ未確定のとき
-        output_not_final = '<span style="color:#ddd;">' + transcript + '</span>';
-    }
-    resultOutput.innerHTML = output + output_not_final;
-}
-
 // 開始ボタンのイベントハンドラ
 startButton.addEventListener('click', function() {
     asr.start();
@@ -160,16 +158,6 @@ stopButton.addEventListener('click', function() {
     asr.abort();
     asr.stop();
 })
-
-// 音量のスライダーのイベントハンドラ
-        volumeSlider.addEventListener('input', function () {
-            tts.volume = parseFloat(volumeSlider.value);
-        });
-
-        // 速度のスライダーのイベントハンドラ
-        speedSlider.addEventListener('input', function () {
-            tts.rate = parseFloat(speedSlider.value);
-        });
 </script>
 
 </body>
